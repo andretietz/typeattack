@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    name: Publish for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: project-transformer
+            zipcommand: zip -j project-transformer-linux-x86_64.zip target/release/project-transformer README.md
+            asset_name: project-transformer-linux-x86_64
+          - os: windows-latest
+            zipcommand: Compress-Archive target/release/project-transformer.exe,README.md project-transformer-windows-x86_64.zip
+            artifact_name: project-transformer.exe
+            asset_name: project-transformer-windows-x86_64
+          - os: macos-latest
+            zipcommand: zip -j project-transformer-macos-x86_64.zip target/release/project-transformer README.md
+            artifact_name: project-transformer
+            asset_name: project-transformer-macos-x86_64
+
+    steps:
+      - name: Setup Rust environment
+        uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: stable
+
+      - name: Checking out code...
+        uses: actions/checkout@v1
+
+      - name: Build
+        run: |
+          cargo build --release --locked
+          ${{ matrix.zipcommand }}
+
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./${{ matrix.asset_name }}.zip
+          asset_name: ${{ matrix.asset_name }}.zip
+          tag: ${{ github.ref }}
+          overwrite: true
