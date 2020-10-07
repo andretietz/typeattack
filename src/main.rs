@@ -1,13 +1,13 @@
 use crate::arguments::Arguments;
-use crate::typotack::Typotack;
+use crate::typeattack::Typeattack;
 
 mod arguments;
-mod typotack;
+mod typeattack;
 mod graphics;
 
 fn main() -> Result<(), String> {
   let args = Arguments::get()?;
-  let typotack = Typotack::new(&args);
+  let typotack = Typeattack::new(&args);
   typotack.run();
   Ok(())
 }

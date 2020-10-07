@@ -17,6 +17,7 @@ pub struct Crossterm {
 
 impl Crossterm {
   pub fn new() -> Self {
+    Crossterm{}
   }
 }
 

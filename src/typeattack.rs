@@ -1,15 +1,13 @@
 use crate::arguments::Arguments;
 use crate::graphics::{Crossterm, RenderEngine};
 
-pub struct State {
-  // pub List()
-}
+pub struct State;
 
-pub struct Typotack {
+pub struct Typeattack<T : RenderEngine> {
   state: State,
   level: u16,
   words: Vec<String>,
-  engine: dyn RenderEngine,
+  engine: T,
 }
 
 pub enum Event {
@@ -18,9 +16,9 @@ pub enum Event {
 }
 
 
-impl Typotack {
-  pub fn new(args: &Arguments) -> &Self {
-    return &Typotack {
+impl Typeattack<Crossterm> {
+  pub fn new(args: &Arguments) -> Self {
+    return Typeattack {
       state: State,
       level: args.level,
       // TODO: not ideal, fine for now
