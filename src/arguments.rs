@@ -13,7 +13,7 @@ const DESCRIPTION: &'static str = env!("CARGO_PKG_DESCRIPTION");
 #[derive(Debug)]
 pub struct Arguments {
   pub file: Vec<String>,
-  pub level: u16,
+  pub level: u8,
 }
 
 impl Arguments {
@@ -43,10 +43,10 @@ impl Arguments {
     if !wordlist.exists() || !wordlist.is_file() {
       return Err(format!("Couldn\'t find wordlist file: {}", wordlist_arg));
     }
-    let level: u16 = matches
+    let level: u8 = matches
       .value_of("level")
       .unwrap_or("1")
-      .parse::<u16>()
+      .parse::<u8>()
       .map_err(|_| "Error while parsing level!")?;
     if let Ok(lines) = Self::read_lines(wordlist_arg) {
       return Ok(Arguments {
