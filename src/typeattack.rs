@@ -1,5 +1,6 @@
 use std::alloc::System;
 use std::borrow::Borrow;
+use std::ops::Add;
 use std::time::{Duration, Instant, SystemTime};
 
 use async_std::process::Output;
@@ -40,28 +41,35 @@ impl Typeattack<Crossterm> {
 
 
   pub async fn run(self: &mut Self) {
-    let mut end_condition = true;
     self.engine.clear_screen();
     let mut timer = async_std::stream::interval(Duration::from_millis(100));
-    let mut input: &dyn Stream<Item=Event> = self.engine.event_stream().borrow();
-
+    let mut input = self.engine.event_stream();
     let mut time = SystemTime::now();
 
     let mut world_state = WorldState::new();
 
-    // TODO unstable method!
+    // unstable method!
     let mut stream = select(
-      timer.map(|a| world_state),
-      input.map(|a| 2), // TODO: map to game state object
+      timer.map(|a| StreamEvent::TimeUpdate),
+      input.map(|a| StreamEvent::KeyEvent(a)),
     );
 
-    while let Some(item) = stream.next().await {
-      let delta = time.elapsed().unwrap();
-      time = SystemTime::now();
-      let new_world_state = self.update_world(delta, &world_state);
-      self.engine.update(&new_world_state, &world_state);
-      world_state = new_world_state;
-      // println!("{:?}", world_state);
+    while let Some(event) = stream.next().await {
+      match event {
+        StreamEvent::TimeUpdate => {
+          let delta = time.elapsed().unwrap();
+          time = SystemTime::now();
+          let new_world_state = self.update_world(delta, &world_state);
+          self.engine.update(&new_world_state, &world_state);
+          world_state = new_world_state;
+        }
+        StreamEvent::KeyEvent(key) => {
+          match key {
+            Event::Pause => break,
+            _ => {}
+          }
+        }
+      }
     }
   }
 
@@ -99,6 +107,11 @@ impl Typeattack<Crossterm> {
       y: 0.0,
     }
   }
+}
+
+enum StreamEvent {
+  TimeUpdate,
+  KeyEvent(Event),
 }
 
 #[derive(Debug)]

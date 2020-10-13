@@ -8,15 +8,20 @@ use crossterm::{
   queue, QueueableCommand, Result, style::Colorize, style::Print, terminal::{self, Clear, ClearType},
 };
 use crossterm::event::EventStream;
-use futures::{Stream, StreamExt};
+// use futures::{Stream, StreamExt};
+use futures::{
+  stream::Stream, stream::StreamExt,
+  task::{Context, Poll},
+};
 use futures::stream::{Filter, Map};
 
 use crate::typeattack::{Event, Word, WorldState};
+use std::pin::Pin;
 
 pub trait RenderEngine {
   fn clear_screen(self: &Self);
   // some stream of type Event
-  fn event_stream(self: &Self) -> Box<dyn Stream<Item=Event>>;
+  fn event_stream(self: &Self) -> Pin<Box<dyn Stream<Item=Event>>>;
 
   fn update(self: &Self, state: &WorldState, old: &WorldState);
 }
@@ -41,36 +46,43 @@ impl Crossterm {
     (x.round() as u16, y.round() as u16)
   }
 
-  fn stream(self: &Self) -> impl Stream<Item=Event> {
-    return event::EventStream::new()
+  fn stream(self: &Self) -> Pin<Box<dyn Stream<Item=Event>>> {
+     return event::EventStream::new()
         // filter all events we don't require
-        .filter(|result| self.filter_events(result))
-        .map(|result| self.map_events(result));
-  }
-
-  fn filter_events(self: &Self, result: &Result<event::Event>) -> bool {
-    match result {
-      Ok(event) => {
-        if let key = (event as KeyEvent).code {
-          match key {
-            KeyCode::Esc => true,
-            KeyCode::Char(c) => true,
+        .filter(|result| {
+          return futures::future::ready(match result {
+            Ok(event) => {
+              match event {
+                event::Event::Key(key) => {
+                  match key.code {
+                    KeyCode::Esc => true,
+                    KeyCode::Char(c) => true,
+                    _ => false
+                  }
+                }
+                _ => false
+              }
+            }
             _ => false
+          })
+        })
+        .map(|result| {
+          return match result {
+            Ok(event) => {
+              match event {
+                event::Event::Key(key) => {
+                  match key.code {
+                    KeyCode::Esc => Event::Pause,
+                    KeyCode::Char(c) => Event::Key(c),
+                    _ => panic!("")
+                  }
+                }
+                _ => panic!("")
+              }
+            }
+            _ => panic!("")
           }
-        }
-        false
-      }
-      _ => false
-    }
-  }
-
-  fn map_events(self: &Self, result: Result<event::Event>) -> Event {
-    let event = result.unwrap() as KeyEvent;
-    match event.code {
-      KeyCode::Esc => Event::Pause,
-      KeyCode::Char(a) => Event::Key(a),
-      _ => panic!("Should be filtered already!")
-    }
+        }).boxed();
   }
 }
 
@@ -79,8 +91,8 @@ impl RenderEngine for Crossterm {
     execute!(stdout(), Clear(ClearType::All), Hide );
   }
 
-  fn event_stream(self: &Self) -> Box<dyn Stream<Item=Event>> {
-    Box::new(self.stream())
+  fn event_stream(self: &Self) -> Pin<Box<dyn Stream<Item=Event>>> {
+    self.stream()
   }
 
 
