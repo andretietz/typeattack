@@ -2,8 +2,9 @@ use std::io::{stdout, Write};
 use crossterm::{
   cursor::{Hide, MoveTo, RestorePosition, SavePosition},
   event::{self, KeyCode},
+  terminal::{Clear, ClearType, size, enable_raw_mode},
   execute,
-  queue, style::Print, terminal::{Clear, ClearType, enable_raw_mode},
+  queue, style::Print,
 };
 use futures::{
   stream::Stream, stream::StreamExt,
@@ -26,10 +27,10 @@ pub struct Crossterm {
 
 impl Crossterm {
   pub fn new() -> Self {
-    // let (x, y) = terminal::size().unwrap();
+    let (x, y) = size().unwrap();
     Crossterm {
-      size_x: 10,
-      size_y: 10,
+      size_x: x,
+      size_y: y,
     }
   }
 
@@ -40,7 +41,7 @@ impl Crossterm {
   }
 
   fn stream(self: &Self) -> Pin<Box<dyn Stream<Item=Event>>> {
-     return event::EventStream::new()
+    return event::EventStream::new()
         // filter all events we don't require
         .filter(|result| {
           return futures::future::ready(match result {
@@ -57,7 +58,7 @@ impl Crossterm {
               }
             }
             _ => false
-          })
+          });
         })
         .map(|result| {
           return match result {
@@ -74,7 +75,7 @@ impl Crossterm {
               }
             }
             _ => panic!("")
-          }
+          };
         }).boxed();
   }
 }
