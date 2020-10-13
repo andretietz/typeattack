@@ -1,5 +1,5 @@
 use std::time::{Duration, SystemTime};
-
+use async_std::stream::interval;
 use futures::{stream::select, StreamExt};
 use rand::Rng;
 use rand::prelude::ThreadRng;
@@ -33,17 +33,17 @@ impl Typeattack<Crossterm> {
 
   pub async fn run(self: &mut Self) {
     self.engine.clear_screen();
-    let timer = async_std::stream::interval(Duration::from_millis(100));
-    let input = self.engine.event_stream();
+    let timer = interval(Duration::from_millis(100))
+        .map(|_| StreamEvent::TimeUpdate);
+    let input = self.engine.event_stream()
+        .map(|a| StreamEvent::KeyEvent(a));
+    // TODO better way for time diff!
     let mut time = SystemTime::now();
 
     let mut world_state = WorldState::new();
 
-    // unstable method!
-    let mut stream = select(
-      timer.map(|_| StreamEvent::TimeUpdate),
-      input.map(|a| StreamEvent::KeyEvent(a)),
-    );
+    // unstable method: select
+    let mut stream = select(timer, input);
 
     while let Some(event) = stream.next().await {
       match event {

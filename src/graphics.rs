@@ -3,7 +3,7 @@ use crossterm::{
   cursor::{Hide, MoveTo, RestorePosition, SavePosition},
   event::{self, KeyCode},
   execute,
-  queue, style::Print, terminal::{Clear, ClearType},
+  queue, style::Print, terminal::{Clear, ClearType, enable_raw_mode},
 };
 use futures::{
   stream::Stream, stream::StreamExt,
@@ -81,6 +81,7 @@ impl Crossterm {
 
 impl RenderEngine for Crossterm {
   fn clear_screen(self: &Self) {
+    enable_raw_mode().unwrap();
     execute!(stdout(), Clear(ClearType::All), Hide).unwrap();
   }
 
