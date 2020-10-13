@@ -1,8 +1,9 @@
 use std::time::{Duration, SystemTime};
+
 use async_std::stream::interval;
 use futures::{stream::select, StreamExt};
-use rand::Rng;
 use rand::prelude::ThreadRng;
+use rand::Rng;
 
 use crate::arguments::Arguments;
 use crate::graphics::{Crossterm, RenderEngine};
@@ -16,7 +17,9 @@ pub struct Typeattack<T: RenderEngine> {
 
 pub enum Event {
   Pause,
-  Key(char),
+  Resize(u16, u16),
+  AddChar(char),
+  RemoveChar,
 }
 
 impl Typeattack<Crossterm> {
@@ -55,10 +58,31 @@ impl Typeattack<Crossterm> {
           world_state = new_world_state;
         }
         StreamEvent::KeyEvent(key) => {
+          let mut new_world_state = world_state.clone();
           match key {
             Event::Pause => break,
-            _ => {}
+            Event::Resize(x, y) => {
+              self.engine.set_screen_size(x, y);
+              self.engine.clear_screen();
+            }
+            Event::AddChar(c) => {
+              new_world_state.buffer.push(c);
+              new_world_state.keycount += 1;
+            }
+            Event::RemoveChar => {
+              new_world_state.buffer.pop();
+              new_world_state.keycount += 1;
+            }
           }
+          let buffer = &new_world_state.buffer;
+          new_world_state.words.retain(|word| &word.word != buffer);
+          let w = world_state.words.len() - new_world_state.words.len();
+          if w > 0 {
+            new_world_state.buffer.clear();
+          }
+          new_world_state.wordcount += w as u128;
+          self.engine.update(&new_world_state, &world_state);
+          world_state = new_world_state;
         }
       }
     }
@@ -87,6 +111,8 @@ impl Typeattack<Crossterm> {
       words,
       buffer: world.buffer.clone(),
       fails: world.fails + fails,
+      wordcount: world.wordcount,
+      keycount: world.keycount,
     }
   }
 
@@ -105,11 +131,13 @@ enum StreamEvent {
   KeyEvent(Event),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WorldState {
   pub words: Vec<Word>,
   pub buffer: String,
   pub fails: u16,
+  pub wordcount: u128,
+  pub keycount: u128,
 }
 
 impl WorldState {
@@ -118,6 +146,8 @@ impl WorldState {
       words: vec![],
       buffer: String::new(),
       fails: 0,
+      wordcount: 0,
+      keycount: 0,
     }
   }
 }

@@ -1,19 +1,23 @@
 use std::io::{stdout, Write};
+use std::pin::Pin;
+
 use crossterm::{
-  cursor::{Hide, MoveTo, RestorePosition, SavePosition},
+  cursor::{MoveLeft, MoveTo, RestorePosition, SavePosition},
   event::{self, KeyCode},
-  terminal::{Clear, ClearType, size, enable_raw_mode},
   execute,
-  queue, style::Print,
+  queue,
+  style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor}, terminal::{Clear, ClearType, enable_raw_mode, size},
 };
 use futures::{
   stream::Stream, stream::StreamExt,
 };
+
 use crate::typeattack::{Event, Word, WorldState};
-use std::pin::Pin;
 
 pub trait RenderEngine {
   fn clear_screen(self: &Self);
+
+  fn set_screen_size(self: &mut Self, x: u16, y: u16);
   // some stream of type Event
   fn event_stream(self: &Self) -> Pin<Box<dyn Stream<Item=Event>>>;
 
@@ -34,6 +38,21 @@ impl Crossterm {
     }
   }
 
+
+  fn print_word(self: &Self, buffer: &String, word: &String) {
+    queue!(stdout(), Print(word)).unwrap();
+    if word.starts_with(buffer.as_str()) {
+      queue!(
+        stdout(),
+        MoveLeft(word.len() as u16),
+        SetForegroundColor(Color::Black), // TODO: invert
+        SetBackgroundColor(Color::White), // TODO: invert
+        Print(buffer),
+        ResetColor
+      ).unwrap();
+    }
+  }
+
   fn get_position(self: &Self, word: &Word) -> (u16, u16) {
     let y = self.size_y as f64 * word.y;
     let x = self.size_x as f64 * word.x;
@@ -50,10 +69,12 @@ impl Crossterm {
                 event::Event::Key(key) => {
                   match key.code {
                     KeyCode::Esc => true,
+                    KeyCode::Backspace => true,
                     KeyCode::Char(_) => true,
                     _ => false
                   }
                 }
+                event::Event::Resize(_, _) => true,
                 _ => false
               }
             }
@@ -67,10 +88,12 @@ impl Crossterm {
                 event::Event::Key(key) => {
                   match key.code {
                     KeyCode::Esc => Event::Pause,
-                    KeyCode::Char(c) => Event::Key(c),
+                    KeyCode::Backspace => Event::RemoveChar,
+                    KeyCode::Char(c) => Event::AddChar(c),
                     _ => panic!("")
                   }
                 }
+                event::Event::Resize(x, y) => Event::Resize(x, y),
                 _ => panic!("")
               }
             }
@@ -83,13 +106,17 @@ impl Crossterm {
 impl RenderEngine for Crossterm {
   fn clear_screen(self: &Self) {
     enable_raw_mode().unwrap();
-    execute!(stdout(), Clear(ClearType::All), Hide).unwrap();
+    execute!(stdout(), Clear(ClearType::All)).unwrap();
+  }
+
+  fn set_screen_size(self: &mut Self, x: u16, y: u16) {
+    self.size_x = x;
+    self.size_y = y;
   }
 
   fn event_stream(self: &Self) -> Pin<Box<dyn Stream<Item=Event>>> {
     self.stream()
   }
-
 
   fn update(self: &Self, state: &WorldState, old: &WorldState) {
     queue!(stdout(), SavePosition).unwrap();
@@ -107,10 +134,18 @@ impl RenderEngine for Crossterm {
       let (x, y) = self.get_position(&word);
       queue!(
         stdout(),
-        MoveTo(x, y),
-        Print(&word.word)
+        MoveTo(x, y)
       ).unwrap();
+      self.print_word(&state.buffer, &word.word);
     }
+
+    // draw HUD
+    queue!(stdout(),
+      MoveTo(0, self.size_y),
+      Print(" ".repeat(self.size_x.into())),
+      MoveTo(0, self.size_y),
+      Print(format!("Inputs: {} Fails: {} Words: {} Buffer: {}", &state.keycount, &state.fails, &state.wordcount, &state.buffer))
+      ).unwrap();
     queue!(stdout(), RestorePosition).unwrap();
     // apply
     stdout().flush().unwrap();
