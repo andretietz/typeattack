@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 clap = "2.33.3"
 log = "0.4.11"
-crossterm = "0.18.0"
+rand = "0.7.3"
+crossterm = { version = "0.18.0", features = ["event-stream"] }
 futures = "0.3.6"
-genawaiter = "0.99.1"
+async-std = { version = "1.6.5", features = ["attributes", "unstable"] }
