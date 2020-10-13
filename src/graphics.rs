@@ -1,20 +1,13 @@
-use std::io::{stdout, Stdout, Write};
-use std::time::Duration;
+use std::io::{stdout, Write};
 use crossterm::{
   cursor::{Hide, MoveTo, RestorePosition, SavePosition},
-  event::{self, KeyCode, KeyEvent, poll, read},
-  ExecutableCommand,
+  event::{self, KeyCode},
   execute,
-  queue, QueueableCommand, Result, style::Colorize, style::Print, terminal::{self, Clear, ClearType},
+  queue, style::Print, terminal::{Clear, ClearType},
 };
-use crossterm::event::EventStream;
-// use futures::{Stream, StreamExt};
 use futures::{
   stream::Stream, stream::StreamExt,
-  task::{Context, Poll},
 };
-use futures::stream::{Filter, Map};
-
 use crate::typeattack::{Event, Word, WorldState};
 use std::pin::Pin;
 
@@ -33,7 +26,7 @@ pub struct Crossterm {
 
 impl Crossterm {
   pub fn new() -> Self {
-    let (x, y) = terminal::size().unwrap();
+    // let (x, y) = terminal::size().unwrap();
     Crossterm {
       size_x: 10,
       size_y: 10,
@@ -56,7 +49,7 @@ impl Crossterm {
                 event::Event::Key(key) => {
                   match key.code {
                     KeyCode::Esc => true,
-                    KeyCode::Char(c) => true,
+                    KeyCode::Char(_) => true,
                     _ => false
                   }
                 }
@@ -88,7 +81,7 @@ impl Crossterm {
 
 impl RenderEngine for Crossterm {
   fn clear_screen(self: &Self) {
-    execute!(stdout(), Clear(ClearType::All), Hide );
+    execute!(stdout(), Clear(ClearType::All), Hide).unwrap();
   }
 
   fn event_stream(self: &Self) -> Pin<Box<dyn Stream<Item=Event>>> {
@@ -97,24 +90,27 @@ impl RenderEngine for Crossterm {
 
 
   fn update(self: &Self, state: &WorldState, old: &WorldState) {
-    queue!(stdout(), SavePosition);
+    queue!(stdout(), SavePosition).unwrap();
+    // remove old words
     for word in &old.words {
       let (x, y) = self.get_position(&word);
       queue!(
         stdout(),
         MoveTo(x, y),
         Print(" ".repeat(word.word.len()))
-      );
+      ).unwrap();
     }
+    // update new words
     for word in &state.words {
       let (x, y) = self.get_position(&word);
       queue!(
         stdout(),
         MoveTo(x, y),
         Print(&word.word)
-      );
+      ).unwrap();
     }
-    queue!(stdout(), RestorePosition);
-    stdout().flush();
+    queue!(stdout(), RestorePosition).unwrap();
+    // apply
+    stdout().flush().unwrap();
   }
 }

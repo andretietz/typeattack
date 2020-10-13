@@ -1,6 +1,5 @@
 use crate::arguments::Arguments;
 use crate::typeattack::Typeattack;
-use async_std::stream::StreamExt;
 
 mod arguments;
 mod graphics;

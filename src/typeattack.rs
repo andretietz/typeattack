@@ -1,21 +1,13 @@
-use std::alloc::System;
-use std::borrow::Borrow;
-use std::ops::Add;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, SystemTime};
 
-use async_std::process::Output;
-use async_std::stream::{interval, Interval};
-use futures::{select, Stream, stream::select, StreamExt, TryStreamExt};
-use rand::{random, Rng};
+use futures::{stream::select, StreamExt};
+use rand::Rng;
 use rand::prelude::ThreadRng;
 
 use crate::arguments::Arguments;
 use crate::graphics::{Crossterm, RenderEngine};
 
-pub struct State;
-
 pub struct Typeattack<T: RenderEngine> {
-  state: State,
   level: u8,
   words: Vec<String>,
   engine: T,
@@ -30,7 +22,6 @@ pub enum Event {
 impl Typeattack<Crossterm> {
   pub fn new(args: &Arguments) -> Self {
     return Typeattack {
-      state: State,
       level: args.level,
       // TODO: not ideal, fine for now
       words: args.file.clone(),
@@ -42,15 +33,15 @@ impl Typeattack<Crossterm> {
 
   pub async fn run(self: &mut Self) {
     self.engine.clear_screen();
-    let mut timer = async_std::stream::interval(Duration::from_millis(100));
-    let mut input = self.engine.event_stream();
+    let timer = async_std::stream::interval(Duration::from_millis(100));
+    let input = self.engine.event_stream();
     let mut time = SystemTime::now();
 
     let mut world_state = WorldState::new();
 
     // unstable method!
     let mut stream = select(
-      timer.map(|a| StreamEvent::TimeUpdate),
+      timer.map(|_| StreamEvent::TimeUpdate),
       input.map(|a| StreamEvent::KeyEvent(a)),
     );
 
