@@ -4,7 +4,6 @@ use crate::typeattack::Typeattack;
 
 mod arguments;
 mod typeattack;
-mod renderengine;
 mod crossterm;
 
 #[async_std::main]

@@ -12,8 +12,7 @@ use std::pin::Pin;
 
 use futures::stream::{Stream, StreamExt};
 
-use crate::typeattack::{Event, Word, WorldState};
-use crate::renderengine::RenderEngine;
+use crate::typeattack::{Event, Word, WorldState, RenderEngine};
 
 pub struct Crossterm {
   size_x: u16,
@@ -90,7 +89,8 @@ impl Crossterm {
             }
             _ => panic!("")
           };
-        }).boxed();
+        })
+        .boxed();
   }
 }
 

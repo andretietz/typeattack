@@ -1,25 +1,46 @@
+use std::pin::Pin;
 use std::time::{Duration, Instant};
 
 use async_std::stream::interval;
 use futures::{stream::select, StreamExt};
+use futures::stream::Stream;
 use rand::prelude::ThreadRng;
 use rand::Rng;
 
 use crate::arguments::Arguments;
-use crate::renderengine::RenderEngine;
+
+/// Events the [RenderEngine.event_stream] needs to produce.
+pub enum Event {
+  // pauses the game
+  Pause,
+  // resizes the screen -> TODO removable
+  Resize(u16, u16),
+  // a character was entered by the user
+  AddChar(char),
+  // the user wants to remove the last entered character (delete)
+  RemoveChar,
+}
+
+pub trait RenderEngine {
+  /// Clear the screen.
+  fn clear_screen(self: &Self);
+
+  /// TODO can be removed
+  fn set_screen_size(self: &mut Self, x: u16, y: u16);
+
+  /// some stream of type Event
+  fn event_stream(self: &Self) -> Pin<Box<dyn Stream<Item=Event>>>;
+
+  /// when the game has an update, this method is
+  /// called in order to update the ui.
+  fn update(self: &Self, state: &WorldState, old: &WorldState);
+}
 
 pub struct Typeattack {
   level: u8,
   words: Vec<String>,
   engine: Box<dyn RenderEngine>,
   random: ThreadRng,
-}
-
-pub enum Event {
-  Pause,
-  Resize(u16, u16),
-  AddChar(char),
-  RemoveChar,
 }
 
 impl Typeattack {
@@ -158,7 +179,6 @@ impl WorldState {
 #[derive(Debug, Clone)]
 pub struct Word {
   pub word: String,
-  // between 0..1
   pub x: f64,
   pub y: f64,
 }
