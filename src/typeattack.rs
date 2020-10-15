@@ -1,4 +1,4 @@
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant};
 
 use async_std::stream::interval;
 use futures::{stream::select, StreamExt};
@@ -6,12 +6,12 @@ use rand::prelude::ThreadRng;
 use rand::Rng;
 
 use crate::arguments::Arguments;
-use crate::graphics::{Crossterm, RenderEngine};
+use crate::renderengine::RenderEngine;
 
-pub struct Typeattack<T: RenderEngine> {
+pub struct Typeattack {
   level: u8,
   words: Vec<String>,
-  engine: T,
+  engine: Box<dyn RenderEngine>,
   random: ThreadRng,
 }
 
@@ -22,13 +22,13 @@ pub enum Event {
   RemoveChar,
 }
 
-impl Typeattack<Crossterm> {
-  pub fn new(args: &Arguments) -> Self {
+impl Typeattack {
+  pub fn new(args: &Arguments, engine: Box<dyn RenderEngine>) -> Self {
     return Typeattack {
       level: args.level,
       // TODO: not ideal, fine for now
       words: args.file.clone(),
-      engine: Crossterm::new(),
+      engine,
       random: rand::thread_rng(),
     };
   }
@@ -36,23 +36,26 @@ impl Typeattack<Crossterm> {
 
   pub async fn run(self: &mut Self) {
     self.engine.clear_screen();
+    // A timer that triggers updates of the ui
     let timer = interval(Duration::from_millis(100))
         .map(|_| StreamEvent::TimeUpdate);
+    // A stream that delivers the input of the keyboard
     let input = self.engine.event_stream()
         .map(|a| StreamEvent::KeyEvent(a));
-    // TODO better way for time diff!
-    let mut time = SystemTime::now();
+
+    let mut time = Instant::now();
 
     let mut world_state = WorldState::new();
 
     // unstable method: select
+    // Create a stream that emits time updates and key events at the same time.
     let mut stream = select(timer, input);
 
     while let Some(event) = stream.next().await {
       match event {
         StreamEvent::TimeUpdate => {
-          let delta = time.elapsed().unwrap();
-          time = SystemTime::now();
+          let delta = time.elapsed();
+          time = Instant::now();
           let new_world_state = self.update_world(delta, &world_state);
           self.engine.update(&new_world_state, &world_state);
           world_state = new_world_state;

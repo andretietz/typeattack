@@ -1,6 +1,5 @@
-use std::io::{stdout, Write};
-use std::pin::Pin;
 
+use std::io::{stdout, Write};
 use crossterm::{
   cursor::{MoveLeft, MoveTo, RestorePosition, SavePosition},
   event::{self, KeyCode},
@@ -8,21 +7,13 @@ use crossterm::{
   queue,
   style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor}, terminal::{Clear, ClearType, enable_raw_mode, size},
 };
-use futures::{
-  stream::Stream, stream::StreamExt,
-};
+
+use std::pin::Pin;
+
+use futures::stream::{Stream, StreamExt};
 
 use crate::typeattack::{Event, Word, WorldState};
-
-pub trait RenderEngine {
-  fn clear_screen(self: &Self);
-
-  fn set_screen_size(self: &mut Self, x: u16, y: u16);
-  // some stream of type Event
-  fn event_stream(self: &Self) -> Pin<Box<dyn Stream<Item=Event>>>;
-
-  fn update(self: &Self, state: &WorldState, old: &WorldState);
-}
+use crate::renderengine::RenderEngine;
 
 pub struct Crossterm {
   size_x: u16,
@@ -61,7 +52,7 @@ impl Crossterm {
 
   fn stream(self: &Self) -> Pin<Box<dyn Stream<Item=Event>>> {
     return event::EventStream::new()
-        // filter all events we don't require
+        // filter all events we don't need
         .filter(|result| {
           return futures::future::ready(match result {
             Ok(event) => {
