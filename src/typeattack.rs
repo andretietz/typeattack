@@ -23,8 +23,10 @@ pub enum Event {
 }
 
 pub trait RenderEngine {
+
+  fn init(self: &Self);
   /// Clear the screen.
-  fn clear_screen(self: &Self);
+  // fn clear_screen(self: &Self);
 
   /// TODO should be removed
   fn set_screen_size(self: &mut Self, x: u16, y: u16);
@@ -32,13 +34,16 @@ pub trait RenderEngine {
   /// some stream of type Event
   fn event_stream(self: &Self) -> Pin<Box<dyn Stream<Item=Event>>>;
 
+  fn draw_menu(self: &Self);
   /// when the game has an update, this method is
   /// called in order to update the ui.
   fn update(self: &Self, state: &WorldState, old: &WorldState);
+
+  fn teardown(self: &Self);
 }
 
 pub struct Typeattack {
-  level: u8,
+  level: usize,
   words: Vec<String>,
   engine: Box<dyn RenderEngine>,
   random: ThreadRng,
@@ -47,7 +52,7 @@ pub struct Typeattack {
 impl Typeattack {
   pub fn new(args: &Arguments, engine: Box<dyn RenderEngine>) -> Self {
     return Typeattack {
-      level: args.level,
+      level: 1,
       // TODO: not ideal, fine for now
       words: args.file.clone(),
       engine,
@@ -56,11 +61,36 @@ impl Typeattack {
   }
 
   pub fn start(self: &mut Self) {
-    block_on(self.run());
+    self.engine.init();
+    while block_on(self.show_menu()) {
+      block_on(self.show_game());
+    }
+    self.engine.teardown();
   }
 
-  pub async fn run(self: &mut Self) {
-    self.engine.clear_screen();
+  pub async fn show_menu(self: &Self) -> bool {
+    self.engine.draw_menu();
+    let mut input = self.engine.event_stream()
+        .filter(|event| {
+          futures::future::ready(
+            match event {
+                Event::AddChar(_) => true,
+                Event::Pause => true,
+              _ => false
+            }
+          )
+        });
+    if let Some(event) = input.next().await {
+      return match event {
+        Event::Pause => false,
+        _ => true
+      };
+    }
+    true
+  }
+
+  pub async fn show_game(self: &mut Self) {
+    // self.engine.clear_screen();
     // A timer that triggers updates of the ui 60 FPS ~ 16.666_7ms => 16ms
     let timer = interval(Duration::from_millis(16))
         .map(|_| StreamEvent::TimeUpdate);
@@ -91,7 +121,7 @@ impl Typeattack {
             Event::Pause => break,
             Event::Resize(x, y) => {
               self.engine.set_screen_size(x, y);
-              self.engine.clear_screen();
+              // self.engine.clear_screen();
             }
             Event::AddChar(c) => {
               new_world_state.buffer.push(c);
@@ -130,7 +160,7 @@ impl Typeattack {
         fails += 1;
       }
     }
-    while words.len() < self.level.into() {
+    while words.len() < self.level+1 {
       words.push(self.spawn_word())
     }
     WorldState {

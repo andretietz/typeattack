@@ -2,12 +2,14 @@ use std::io::{stdout, Write};
 use std::pin::Pin;
 
 use crossterm::{
-  cursor::{MoveTo, RestorePosition, SavePosition},
+  cursor::{Hide, MoveTo, RestorePosition, SavePosition},
   event::{self, KeyCode},
   execute,
   queue,
   style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor}, terminal::{Clear, ClearType, enable_raw_mode, size},
 };
+use crossterm::cursor::EnableBlinking;
+use crossterm::terminal::disable_raw_mode;
 use futures::stream::{Stream, StreamExt};
 
 use crate::typeattack::{Event, RenderEngine, Word, WorldState};
@@ -36,10 +38,13 @@ impl Crossterm {
 
 
   fn print_word(self: &Self, buffer: &String, word: &Word) {
-    queue!(stdout(), Print(&word.word)).unwrap();
+    let (x, y) = self.get_position(word);
+    queue!(stdout(),
+      MoveTo(x, y),
+      Print(&word.word)
+    ).unwrap();
 
     if word.word.starts_with(buffer.as_str()) {
-      let (x, y) = self.get_position(word);
       queue!(
         stdout(),
         MoveTo(x, y),
@@ -107,14 +112,21 @@ impl Crossterm {
 }
 
 impl RenderEngine for Crossterm {
-  fn clear_screen(self: &Self) {
+  fn init(self: &Self) {
     enable_raw_mode().unwrap();
     execute!(stdout(),
-      Clear(ClearType::All),
       SetForegroundColor(Color::White),
       SetBackgroundColor(Color::Black),
+      Hide,
+      SavePosition
     ).unwrap();
   }
+
+  // fn clear_screen(self: &Self) {
+  //   execute!(stdout(),
+  //     Clear(ClearType::All),
+  //   ).unwrap();
+  // }
 
   fn set_screen_size(self: &mut Self, x: u16, y: u16) {
     self.size_x = x;
@@ -125,6 +137,14 @@ impl RenderEngine for Crossterm {
 
   fn event_stream(self: &Self) -> Pin<Box<dyn Stream<Item=Event>>> {
     self.stream()
+  }
+
+  fn draw_menu(self: &Self) {
+    execute!(stdout(),
+      Clear(ClearType::All),
+      MoveTo(0, 0),
+      Print("Menu: Esc - Ends the Game, Any Key - Starts the game")
+    ).unwrap();
   }
 
   fn update(self: &Self, state: &WorldState, old: &WorldState) {
@@ -140,11 +160,6 @@ impl RenderEngine for Crossterm {
     }
     // update new words
     for word in &state.words {
-      let (x, y) = self.get_position(&word);
-      queue!(
-        stdout(),
-        MoveTo(x, y)
-      ).unwrap();
       self.print_word(&state.buffer, &word);
     }
 
@@ -159,6 +174,14 @@ impl RenderEngine for Crossterm {
     // apply
     stdout().flush().unwrap();
   }
+
+  fn teardown(self: &Self) {
+    disable_raw_mode().unwrap();
+    execute!(stdout(),
+      EnableBlinking,
+      RestorePosition
+    ).unwrap();
+  }
 }
 
 #[cfg(test)]
@@ -167,7 +190,7 @@ mod tests {
   use crate::typeattack::Word;
 
   /// 0123456789
-              /// TEST......
+                  /// TEST......
   #[test]
   fn text_left_even() {
     let crossterm = Crossterm::new_with_size(10, 10);
