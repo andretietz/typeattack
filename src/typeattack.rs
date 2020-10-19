@@ -8,6 +8,7 @@ use rand::prelude::ThreadRng;
 use rand::Rng;
 
 use crate::arguments::Arguments;
+use futures::executor::block_on;
 
 /// Events the [RenderEngine.event_stream] needs to produce.
 pub enum Event {
@@ -54,11 +55,14 @@ impl Typeattack {
     };
   }
 
+  pub fn start(self: &mut Self) {
+    block_on(self.run());
+  }
 
   pub async fn run(self: &mut Self) {
     self.engine.clear_screen();
-    // A timer that triggers updates of the ui
-    let timer = interval(Duration::from_millis(100))
+    // A timer that triggers updates of the ui 60 FPS ~ 16.666_7ms => 16ms
+    let timer = interval(Duration::from_millis(16))
         .map(|_| StreamEvent::TimeUpdate);
     // A stream that delivers the input of the keyboard
     let input = self.engine.event_stream()
@@ -113,13 +117,15 @@ impl Typeattack {
   }
 
   fn update_world(self: &mut Self, delta: Duration, world: &WorldState) -> WorldState {
-    let speed: f64 = delta.as_secs_f64() * 0.9;
+    // v = 1.0(screen_unit) / 10000ms = 0.0001 screen_unit/ms
+    // delta_s = v * delta_t
+    let delta_s: f64 = 0.0001 * delta.as_millis() as f64;
     let mut words: Vec<Word> = Vec::new();
     let mut fails: u16 = 0;
     for i in 0..world.words.len() {
       let word: &Word = &world.words[i];
-      if word.y + speed < 1.0 {
-        words.push(Word::new(word.word.as_str().clone(), word.x, word.y + speed));
+      if word.y + delta_s < 1.0 {
+        words.push(Word::new(word.word.as_str().clone(), word.x, word.y + delta_s));
       } else {
         fails += 1;
       }

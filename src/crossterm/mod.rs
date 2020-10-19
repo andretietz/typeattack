@@ -57,7 +57,7 @@ impl Crossterm {
     // 1/max = value/x
     // x = max*value/1
     let x = max * (self.size_x as f64 * word.x) / 1.0;
-    let y = self.size_y as f64 * word.y;
+    let y = (self.size_y - 1) as f64 * word.y;
     (x.round() as u16, y.round() as u16)
   }
 

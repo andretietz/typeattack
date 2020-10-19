@@ -6,9 +6,8 @@ mod arguments;
 mod typeattack;
 mod crossterm;
 
-#[async_std::main]
-async fn main() {
+fn main() {
   let args = Arguments::get().unwrap();
   let mut typotack = Typeattack::new(&args, Box::new(Crossterm::new()));
-  typotack.run().await;
+  typotack.start();
 }
