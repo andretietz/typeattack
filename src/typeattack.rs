@@ -25,7 +25,7 @@ pub trait RenderEngine {
   /// Clear the screen.
   fn clear_screen(self: &Self);
 
-  /// TODO can be removed
+  /// TODO should be removed
   fn set_screen_size(self: &mut Self, x: u16, y: u16);
 
   /// some stream of type Event
@@ -113,17 +113,13 @@ impl Typeattack {
   }
 
   fn update_world(self: &mut Self, delta: Duration, world: &WorldState) -> WorldState {
-    let speed: f64 = delta.as_secs_f64() * 0.1;
+    let speed: f64 = delta.as_secs_f64() * 0.9;
     let mut words: Vec<Word> = Vec::new();
     let mut fails: u16 = 0;
     for i in 0..world.words.len() {
       let word: &Word = &world.words[i];
       if word.y + speed < 1.0 {
-        words.push(Word {
-          word: word.word.clone(),
-          x: word.x,
-          y: word.y + speed,
-        })
+        words.push(Word::new(word.word.as_str().clone(), word.x, word.y + speed));
       } else {
         fails += 1;
       }
@@ -181,4 +177,14 @@ pub struct Word {
   pub word: String,
   pub x: f64,
   pub y: f64,
+}
+
+impl Word {
+  pub fn new(value: &str, x: f64, y: f64) -> Self {
+    return Self {
+      word: String::from(value),
+      x,
+      y,
+    };
+  }
 }
