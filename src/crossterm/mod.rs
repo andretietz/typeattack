@@ -14,6 +14,13 @@ use futures::stream::{Stream, StreamExt};
 
 use crate::typeattack::{Event, RenderEngine, Word, WorldState};
 
+const INTRO1: &'static str = ".%%%%%%..%%..%%..%%%%%...%%%%%%...%%%%...%%%%%%..%%%%%%...%%%%....%%%%...%%..%%.";
+const INTRO2: &'static str = "...%%.....%%%%...%%..%%..%%......%%..%%....%%......%%....%%..%%..%%..%%..%%.%%..";
+const INTRO3: &'static str = "...%%......%%....%%%%%...%%%%....%%%%%%....%%......%%....%%%%%%..%%......%%%%...";
+const INTRO4: &'static str = "...%%......%%....%%......%%......%%..%%....%%......%%....%%..%%..%%..%%..%%.%%..";
+const INTRO5: &'static str = "...%%......%%....%%......%%%%%%..%%..%%....%%......%%....%%..%%...%%%%...%%..%%.";
+const INTRO6: &'static str = "................................................................................";
+
 pub struct Crossterm {
   size_x: u16,
   size_y: u16,
@@ -35,7 +42,6 @@ impl Crossterm {
       unit_y: 1.0 / y as f64,
     }
   }
-
 
   fn print_word(self: &Self, buffer: &String, word: &Word) {
     let (x, y) = self.get_position(word);
@@ -122,12 +128,6 @@ impl RenderEngine for Crossterm {
     ).unwrap();
   }
 
-  // fn clear_screen(self: &Self) {
-  //   execute!(stdout(),
-  //     Clear(ClearType::All),
-  //   ).unwrap();
-  // }
-
   fn set_screen_size(self: &mut Self, x: u16, y: u16) {
     self.size_x = x;
     self.size_y = y;
@@ -140,24 +140,31 @@ impl RenderEngine for Crossterm {
   }
 
   fn draw_menu(self: &Self) {
+    if self.size_x < 80 || self.size_y < 24 {
+      panic!("The terminal size needs to be at least 80x24!")
+    }
     execute!(stdout(),
       Clear(ClearType::All),
-      MoveTo(0, 0),
-      Print("Menu: Esc - Ends the Game, Any Key - Starts the game")
+      MoveTo(0, 2),
+      Print(INTRO1),
+      MoveTo(0, 3),
+      Print(INTRO2),
+      MoveTo(0, 4),
+      Print(INTRO3),
+      MoveTo(0, 5),
+      Print(INTRO4),
+      MoveTo(0, 6),
+      Print(INTRO5),
+      MoveTo(0, 7),
+      Print(INTRO6),
+      MoveTo(0,10),
+      Print("Esc - Leave the game  Any Key - Start the game")
     ).unwrap();
   }
 
-  fn update(self: &Self, state: &WorldState, old: &WorldState) {
-    queue!(stdout(), SavePosition).unwrap();
+  fn update(self: &Self, state: &WorldState, _: &WorldState) {
     // remove old words
-    for word in &old.words {
-      let (x, y) = self.get_position(&word);
-      queue!(
-        stdout(),
-        MoveTo(x, y),
-        Print(" ".repeat(word.word.len()))
-      ).unwrap();
-    }
+    queue!(stdout(), Clear(ClearType::All)).unwrap();
     // update new words
     for word in &state.words {
       self.print_word(&state.buffer, &word);
@@ -165,12 +172,10 @@ impl RenderEngine for Crossterm {
 
     // draw HUD
     queue!(stdout(),
-      MoveTo(0, self.size_y),
-      Print(" ".repeat(self.size_x.into())),
+      // Clear(ClearType::CurrentLine),CurrentLine
       MoveTo(0, self.size_y),
       Print(format!("Inputs: {} Fails: {} Words: {} Buffer: {}", &state.keycount, &state.fails, &state.wordcount, &state.buffer))
       ).unwrap();
-    queue!(stdout(), RestorePosition).unwrap();
     // apply
     stdout().flush().unwrap();
   }
@@ -179,7 +184,8 @@ impl RenderEngine for Crossterm {
     disable_raw_mode().unwrap();
     execute!(stdout(),
       EnableBlinking,
-      RestorePosition
+      RestorePosition,
+      Clear(ClearType::All),
     ).unwrap();
   }
 }
@@ -190,7 +196,7 @@ mod tests {
   use crate::typeattack::Word;
 
   /// 0123456789
-                  /// TEST......
+                      /// TEST......
   #[test]
   fn text_left_even() {
     let crossterm = Crossterm::new_with_size(10, 10);

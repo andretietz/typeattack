@@ -3,12 +3,12 @@ use std::time::{Duration, Instant};
 
 use async_std::stream::interval;
 use futures::{stream::select, StreamExt};
+use futures::executor::block_on;
 use futures::stream::Stream;
 use rand::prelude::ThreadRng;
 use rand::Rng;
 
 use crate::arguments::Arguments;
-use futures::executor::block_on;
 
 /// Events the [RenderEngine.event_stream] needs to produce.
 pub enum Event {
@@ -23,10 +23,7 @@ pub enum Event {
 }
 
 pub trait RenderEngine {
-
   fn init(self: &Self);
-  /// Clear the screen.
-  // fn clear_screen(self: &Self);
 
   /// TODO should be removed
   fn set_screen_size(self: &mut Self, x: u16, y: u16);
@@ -74,8 +71,8 @@ impl Typeattack {
         .filter(|event| {
           futures::future::ready(
             match event {
-                Event::AddChar(_) => true,
-                Event::Pause => true,
+              Event::AddChar(_) => true,
+              Event::Pause => true,
               _ => false
             }
           )
@@ -90,7 +87,6 @@ impl Typeattack {
   }
 
   pub async fn show_game(self: &mut Self) {
-    // self.engine.clear_screen();
     // A timer that triggers updates of the ui 60 FPS ~ 16.666_7ms => 16ms
     let timer = interval(Duration::from_millis(16))
         .map(|_| StreamEvent::TimeUpdate);
@@ -119,10 +115,7 @@ impl Typeattack {
           let mut new_world_state = world_state.clone();
           match key {
             Event::Pause => break,
-            Event::Resize(x, y) => {
-              self.engine.set_screen_size(x, y);
-              // self.engine.clear_screen();
-            }
+            Event::Resize(_, _) => break,
             Event::AddChar(c) => {
               new_world_state.buffer.push(c);
               new_world_state.keycount += 1;
@@ -160,7 +153,7 @@ impl Typeattack {
         fails += 1;
       }
     }
-    while words.len() < self.level+1 {
+    while words.len() < self.level + 1 {
       words.push(self.spawn_word())
     }
     WorldState {
