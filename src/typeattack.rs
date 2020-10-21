@@ -27,9 +27,12 @@ pub trait RenderEngine {
   fn event_stream(self: &Self) -> Pin<Box<dyn Stream<Item=Event>>>;
 
   fn draw_menu(self: &Self);
+
   /// when the game has an update, this method is
   /// called in order to update the ui.
-  fn update(self: &Self, state: &WorldState, old: &WorldState);
+  fn draw_gamestate(self: &Self, state: &WorldState, old: &WorldState);
+
+  fn draw_result(self: &Self, result: &WorldState);
 
   fn teardown(self: &Self);
 }
@@ -58,12 +61,13 @@ impl Typeattack {
       return;
     }
     while block_on(self.show_menu()) {
-      block_on(self.show_game());
+      let result = block_on(self.show_game());
+      block_on(self.show_result(&result));
     }
     self.engine.teardown();
   }
 
-  pub async fn show_menu(self: &Self) -> bool {
+  async fn show_menu(self: &Self) -> bool {
     self.engine.draw_menu();
     let mut input = self.engine.event_stream()
         .filter(|event| {
@@ -84,7 +88,7 @@ impl Typeattack {
     true
   }
 
-  async fn show_game(self: &mut Self) {
+  async fn show_game(self: &mut Self) -> WorldState {
     // A timer that triggers updates of the ui 60 FPS ~ 16.666_7ms => 16ms
     let timer = interval(Duration::from_millis(16))
         .map(|_| StreamEvent::TimeUpdate);
@@ -92,8 +96,8 @@ impl Typeattack {
     let input = self.engine.event_stream()
         .map(|a| StreamEvent::KeyEvent(a));
 
-    let mut time = Instant::now();
-
+    let time = Instant::now();
+    let mut last = 0;
     let mut world_state = WorldState::new();
 
     // unstable method: select
@@ -103,11 +107,12 @@ impl Typeattack {
     while let Some(event) = stream.next().await {
       match event {
         StreamEvent::TimeUpdate => {
-          let delta = time.elapsed();
-          time = Instant::now();
+          let timestamp = time.elapsed().as_millis();
+          let delta = timestamp - last;
           let new_world_state = self.update_world(delta, &world_state);
-          self.engine.update(&new_world_state, &world_state);
+          self.engine.draw_gamestate(&new_world_state, &world_state);
           world_state = new_world_state;
+          last = timestamp;
         }
         StreamEvent::KeyEvent(key) => {
           let mut new_world_state = world_state.clone();
@@ -124,22 +129,32 @@ impl Typeattack {
           }
           let buffer = &new_world_state.buffer;
           new_world_state.words.retain(|word| &word.word != buffer);
-          let w = world_state.words.len() - new_world_state.words.len();
-          if w > 0 {
+          let removed_words = world_state.words.len() - new_world_state.words.len();
+          if removed_words > 0 {
             new_world_state.buffer.clear();
           }
-          new_world_state.wordcount += w as u128;
-          self.engine.update(&new_world_state, &world_state);
+          new_world_state.wordcount += removed_words as u128;
+          self.engine.draw_gamestate(&new_world_state, &world_state);
           world_state = new_world_state;
         }
       }
+      if world_state.fails >= 3 {
+        break;
+      }
     }
+    world_state
   }
 
-  fn update_world(self: &mut Self, delta: Duration, world: &WorldState) -> WorldState {
+  async fn show_result(self: &Self, result: &WorldState) {
+    self.engine.draw_result(result);
+    self.engine.event_stream().next().await;
+  }
+
+  fn update_world(self: &mut Self, delta: u128, world: &WorldState) -> WorldState {
+    let velocity = 0.0001 * (1.0 + self.level as f64 / 10.0) as f64;
     // v = 1.0(screen_unit) / 10000ms = 0.0001 screen_unit/ms
     // delta_s = v * delta_t
-    let delta_s: f64 = 0.0001 * delta.as_millis() as f64;
+    let delta_s = velocity * delta as f64;
     let mut words: Vec<Word> = Vec::new();
     let mut fails: u16 = 0;
     for i in 0..world.words.len() {
@@ -150,7 +165,8 @@ impl Typeattack {
         fails += 1;
       }
     }
-    while words.len() < self.level + 1 {
+    self.level = (world.keycount / 10) as usize + 1;
+    while words.len() < (self.level / 5) + 1 {
       words.push(self.spawn_word())
     }
     WorldState {
@@ -159,6 +175,7 @@ impl Typeattack {
       fails: world.fails + fails,
       wordcount: world.wordcount,
       keycount: world.keycount,
+      level: world.level,
     }
   }
 
@@ -184,6 +201,7 @@ pub struct WorldState {
   pub fails: u16,
   pub wordcount: u128,
   pub keycount: u128,
+  pub level: u128,
 }
 
 impl WorldState {
@@ -194,6 +212,7 @@ impl WorldState {
       fails: 0,
       wordcount: 0,
       keycount: 0,
+      level: 1,
     }
   }
 }

@@ -21,6 +21,7 @@ const INTRO3: &'static str = "...%%......%%....%%%%%...%%%%....%%%%%%....%%.....
 const INTRO4: &'static str = "...%%......%%....%%......%%......%%..%%....%%......%%....%%..%%..%%..%%..%%.%%..";
 const INTRO5: &'static str = "...%%......%%....%%......%%%%%%..%%..%%....%%......%%....%%..%%...%%%%...%%..%%.";
 const INTRO6: &'static str = "................................................................................";
+const GAME_OVER: &'static str = "Game Over";
 
 
 struct Screen {
@@ -142,9 +143,9 @@ impl Crossterm {
     }
     let mut screen = target.lock().unwrap();
     screen.size_x = x;
-    screen.size_y = y;
-    screen.unit_x = 1.0 / x as f64;
-    screen.unit_y = 1.0 / y as f64;
+    screen.size_y = y - 1;
+    screen.unit_x = 1.0 / screen.size_x as f64;
+    screen.unit_y = 1.0 / screen.size_y as f64;
   }
 }
 
@@ -184,8 +185,7 @@ impl RenderEngine for Crossterm {
     ).unwrap();
   }
 
-  fn update(self: &Self, state: &WorldState, _: &WorldState) {
-    // remove old words
+  fn draw_gamestate(self: &Self, state: &WorldState, _: &WorldState) {
     queue!(stdout(), Clear(ClearType::All)).unwrap();
     // update new words
     for word in &state.words {
@@ -197,6 +197,18 @@ impl RenderEngine for Crossterm {
       MoveTo(0, self.screen.lock().unwrap().size_y),
       Print(format!("Inputs: {} Fails: {} Words: {} Buffer: {}", &state.keycount, &state.fails, &state.wordcount, &state.buffer))
       ).unwrap();
+    // apply
+    stdout().flush().unwrap();
+  }
+
+  fn draw_result(self: &Self, _result: &WorldState) {
+    let gameover_pos_x = (self.screen.lock().unwrap().size_x - GAME_OVER.len() as u16) / 2;
+    let gameover_pos_y = self.screen.lock().unwrap().size_y / 2;
+    queue!(stdout(),
+      Clear(ClearType::All),
+      MoveTo(gameover_pos_x, gameover_pos_y),
+      Print(GAME_OVER)
+    ).unwrap();
     // apply
     stdout().flush().unwrap();
   }
@@ -217,7 +229,7 @@ mod tests {
   use crate::typeattack::Word;
 
   /// 0123456789
-  /// TEST......
+            /// TEST......
   #[test]
   fn text_left_even() {
     let crossterm = Crossterm::new_with_size(80, 24);
