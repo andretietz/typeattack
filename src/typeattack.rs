@@ -151,6 +151,7 @@ impl Typeattack {
   }
 
   fn update_world(self: &mut Self, delta: u128, world: &WorldState) -> WorldState {
+    // add 1/10th of speed every level => level 10 -> double speed
     let velocity = 0.0001 * (1.0 + self.level as f64 / 10.0) as f64;
     // v = 1.0(screen_unit) / 10000ms = 0.0001 screen_unit/ms
     // delta_s = v * delta_t
@@ -165,7 +166,9 @@ impl Typeattack {
         fails += 1;
       }
     }
-    self.level = (world.keycount / 10) as usize + 1;
+    // level + 1, for each 10 words
+    self.level = (world.wordcount / 10) as usize + 1;
+    // add 1 additional word every 5 levels
     while words.len() < (self.level / 5) + 1 {
       words.push(self.spawn_word())
     }
