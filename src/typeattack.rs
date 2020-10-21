@@ -14,8 +14,6 @@ use crate::arguments::Arguments;
 pub enum Event {
   // pauses the game
   Pause,
-  // resizes the screen -> TODO removable
-  Resize(u16, u16),
   // a character was entered by the user
   AddChar(char),
   // the user wants to remove the last entered character (delete)
@@ -23,10 +21,7 @@ pub enum Event {
 }
 
 pub trait RenderEngine {
-  fn init(self: &Self);
-
-  /// TODO should be removed
-  fn set_screen_size(self: &mut Self, x: u16, y: u16);
+  fn init(self: &Self) -> Result<(), String>;
 
   /// some stream of type Event
   fn event_stream(self: &Self) -> Pin<Box<dyn Stream<Item=Event>>>;
@@ -58,7 +53,10 @@ impl Typeattack {
   }
 
   pub fn start(self: &mut Self) {
-    self.engine.init();
+    if let Err(error) = self.engine.init() {
+      println!("{}", error);
+      return;
+    }
     while block_on(self.show_menu()) {
       block_on(self.show_game());
     }
@@ -86,7 +84,7 @@ impl Typeattack {
     true
   }
 
-  pub async fn show_game(self: &mut Self) {
+  async fn show_game(self: &mut Self) {
     // A timer that triggers updates of the ui 60 FPS ~ 16.666_7ms => 16ms
     let timer = interval(Duration::from_millis(16))
         .map(|_| StreamEvent::TimeUpdate);
@@ -115,7 +113,6 @@ impl Typeattack {
           let mut new_world_state = world_state.clone();
           match key {
             Event::Pause => break,
-            Event::Resize(_, _) => break,
             Event::AddChar(c) => {
               new_world_state.buffer.push(c);
               new_world_state.keycount += 1;

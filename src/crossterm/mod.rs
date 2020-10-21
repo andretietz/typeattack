@@ -1,5 +1,6 @@
 use std::io::{stdout, Write};
 use std::pin::Pin;
+use std::sync::{Arc, Mutex};
 
 use crossterm::{
   cursor::{Hide, MoveTo, RestorePosition, SavePosition},
@@ -21,11 +22,27 @@ const INTRO4: &'static str = "...%%......%%....%%......%%......%%..%%....%%.....
 const INTRO5: &'static str = "...%%......%%....%%......%%%%%%..%%..%%....%%......%%....%%..%%...%%%%...%%..%%.";
 const INTRO6: &'static str = "................................................................................";
 
-pub struct Crossterm {
+
+struct Screen {
   size_x: u16,
   size_y: u16,
   unit_x: f64,
   unit_y: f64,
+}
+
+impl Screen {
+  pub fn new(x: u16, y: u16) -> Self {
+    Screen {
+      size_x: x,
+      size_y: y,
+      unit_x: 1.0 / x as f64,
+      unit_y: 1.0 / y as f64,
+    }
+  }
+}
+
+pub struct Crossterm {
+  screen: Arc<Mutex<Screen>>
 }
 
 impl Crossterm {
@@ -35,12 +52,11 @@ impl Crossterm {
   }
 
   pub fn new_with_size(x: u16, y: u16) -> Self {
-    Crossterm {
-      size_x: x,
-      size_y: y,
-      unit_x: 1.0 / x as f64,
-      unit_y: 1.0 / y as f64,
-    }
+    let instance = Crossterm {
+      screen: Arc::new(Mutex::new(Screen::new(0, 0)))
+    };
+    Self::set_screen_size(&instance.screen, x, y);
+    instance
   }
 
   fn print_word(self: &Self, buffer: &String, word: &Word) {
@@ -63,19 +79,21 @@ impl Crossterm {
   }
 
   fn get_position(self: &Self, word: &Word) -> (u16, u16) {
-    let word_size = word.word.len() as f64 * self.unit_x;
-    let max = (self.size_x as f64 * self.unit_x) - word_size;
+    let screen = self.screen.lock().unwrap();
+    let word_size = word.word.len() as f64 * screen.unit_x;
+    let max = (screen.size_x as f64 * screen.unit_x) - word_size;
     // 1/max = value/x
     // x = max*value/1
-    let x = max * (self.size_x as f64 * word.x) / 1.0;
-    let y = (self.size_y - 1) as f64 * word.y;
+    let x = max * (screen.size_x as f64 * word.x) / 1.0;
+    let y = (screen.size_y - 1) as f64 * word.y;
     (x.round() as u16, y.round() as u16)
   }
 
   fn stream(self: &Self) -> Pin<Box<dyn Stream<Item=Event>>> {
+    let screen = self.screen.clone();
     return event::EventStream::new()
         // filter all events we don't need
-        .filter(|result| {
+        .filter(move |result| {
           return futures::future::ready(match result {
             Ok(event) => {
               match event {
@@ -87,7 +105,10 @@ impl Crossterm {
                     _ => false
                   }
                 }
-                event::Event::Resize(_, _) => true,
+                event::Event::Resize(x, y) => {
+                  Crossterm::set_screen_size(&screen, *x, *y);
+                  false
+                }
                 _ => false
               }
             }
@@ -106,7 +127,6 @@ impl Crossterm {
                     _ => panic!("")
                   }
                 }
-                event::Event::Resize(x, y) => Event::Resize(x, y),
                 _ => panic!("")
               }
             }
@@ -115,24 +135,29 @@ impl Crossterm {
         })
         .boxed();
   }
+
+  fn set_screen_size(target: &Arc<Mutex<Screen>>, x: u16, y: u16) {
+    if x < 80 || y < 24 {
+      panic!("The terminal size needs to be at least 80x24!")
+    }
+    let mut screen = target.lock().unwrap();
+    screen.size_x = x;
+    screen.size_y = y;
+    screen.unit_x = 1.0 / x as f64;
+    screen.unit_y = 1.0 / y as f64;
+  }
 }
 
 impl RenderEngine for Crossterm {
-  fn init(self: &Self) {
-    enable_raw_mode().unwrap();
+  fn init(self: &Self) -> Result<(), String>{
+    enable_raw_mode().map_err(|_| "Terminal is not supported!")?;
     execute!(stdout(),
       SetForegroundColor(Color::White),
       SetBackgroundColor(Color::Black),
       Hide,
       SavePosition
     ).unwrap();
-  }
-
-  fn set_screen_size(self: &mut Self, x: u16, y: u16) {
-    self.size_x = x;
-    self.size_y = y;
-    self.unit_x = 1.0 / x as f64;
-    self.unit_y = 1.0 / y as f64;
+    Ok(())
   }
 
   fn event_stream(self: &Self) -> Pin<Box<dyn Stream<Item=Event>>> {
@@ -140,9 +165,6 @@ impl RenderEngine for Crossterm {
   }
 
   fn draw_menu(self: &Self) {
-    if self.size_x < 80 || self.size_y < 24 {
-      panic!("The terminal size needs to be at least 80x24!")
-    }
     execute!(stdout(),
       Clear(ClearType::All),
       MoveTo(0, 2),
@@ -172,8 +194,7 @@ impl RenderEngine for Crossterm {
 
     // draw HUD
     queue!(stdout(),
-      // Clear(ClearType::CurrentLine),CurrentLine
-      MoveTo(0, self.size_y),
+      MoveTo(0, self.screen.lock().unwrap().size_y),
       Print(format!("Inputs: {} Fails: {} Words: {} Buffer: {}", &state.keycount, &state.fails, &state.wordcount, &state.buffer))
       ).unwrap();
     // apply
@@ -196,7 +217,7 @@ mod tests {
   use crate::typeattack::Word;
 
   /// 0123456789
-                      /// TEST......
+    /// TEST......
   #[test]
   fn text_left_even() {
     let crossterm = Crossterm::new_with_size(10, 10);
