@@ -149,7 +149,7 @@ impl Crossterm {
 }
 
 impl RenderEngine for Crossterm {
-  fn init(self: &Self) -> Result<(), String>{
+  fn init(self: &Self) -> Result<(), String> {
     enable_raw_mode().map_err(|_| "Terminal is not supported!")?;
     execute!(stdout(),
       SetForegroundColor(Color::White),
@@ -217,10 +217,10 @@ mod tests {
   use crate::typeattack::Word;
 
   /// 0123456789
-    /// TEST......
+  /// TEST......
   #[test]
   fn text_left_even() {
-    let crossterm = Crossterm::new_with_size(10, 10);
+    let crossterm = Crossterm::new_with_size(80, 24);
     let word = Word::new("TEST", 0., 0.);
     let (x, y) = crossterm.get_position(&word);
     assert_eq!(x, 0);
@@ -231,10 +231,10 @@ mod tests {
   /// ......TEST
   #[test]
   fn text_right_even() {
-    let crossterm = Crossterm::new_with_size(10, 10);
+    let crossterm = Crossterm::new_with_size(80, 24);
     let word = Word::new("TEST", 1., 0.);
     let (x, y) = crossterm.get_position(&word);
-    assert_eq!(x, 6);
+    assert_eq!(x, 76);
     assert_eq!(y, 0);
   }
 
@@ -242,10 +242,10 @@ mod tests {
   /// ...TEST...
   #[test]
   fn text_center_even() {
-    let crossterm = Crossterm::new_with_size(10, 10);
+    let crossterm = Crossterm::new_with_size(80, 24);
     let word = Word::new("TEST", 0.5, 0.);
     let (x, y) = crossterm.get_position(&word);
-    assert_eq!(x, 3);
+    assert_eq!(x, 38);
     assert_eq!(y, 0);
   }
 
@@ -253,7 +253,7 @@ mod tests {
   /// TEST.....
   #[test]
   fn text_left_uneven() {
-    let crossterm = Crossterm::new_with_size(9, 9);
+    let crossterm = Crossterm::new_with_size(80, 24);
     let word = Word::new("TEST", 0., 0.);
     let (x, y) = crossterm.get_position(&word);
     assert_eq!(x, 0);
@@ -264,10 +264,10 @@ mod tests {
   /// .....TEST
   #[test]
   fn text_right_uneven() {
-    let crossterm = Crossterm::new_with_size(9, 9);
+    let crossterm = Crossterm::new_with_size(80, 24);
     let word = Word::new("TEST", 1., 0.);
     let (x, y) = crossterm.get_position(&word);
-    assert_eq!(x, 5);
+    assert_eq!(x, 76);
     assert_eq!(y, 0);
   }
 
@@ -275,10 +275,10 @@ mod tests {
   /// ...TEST..
   #[test]
   fn text_center_uneven() {
-    let crossterm = Crossterm::new_with_size(9, 9);
+    let crossterm = Crossterm::new_with_size(80, 24);
     let word = Word::new("TEST", 0.5, 0.);
     let (x, y) = crossterm.get_position(&word);
-    assert_eq!(x, 3);
+    assert_eq!(x, 38);
     assert_eq!(y, 0);
   }
 }
