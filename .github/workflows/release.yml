@@ -7,21 +7,24 @@ on:
 
 jobs:
   build:
-    name: Publish for ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Building release for ${{ matrix.os }}
+    runs-on: ${{ matrix.image }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        image: [ ubuntu-latest, windows-latest, macos-latest ]
         include:
-          - os: ubuntu-latest
+          - image: ubuntu-latest
+            os: linux
             artifact_name: typeattack
             zipcommand: zip -j typeattack-linux-x86_64.zip target/release/typeattack README.md
             asset_name: typeattack-linux-x86_64
-          - os: windows-latest
+          - image: windows-latest
+            os: windows
             zipcommand: Compress-Archive target/release/typeattack.exe,README.md typeattack-windows-x86_64.zip
             artifact_name: typeattack.exe
             asset_name: typeattack-windows-x86_64
-          - os: macos-latest
+          - image: macos-latest
+            os: macos
             zipcommand: zip -j typeattack-macos-x86_64.zip target/release/typeattack README.md
             artifact_name: typeattack
             asset_name: typeattack-macos-x86_64
@@ -36,19 +39,7 @@ jobs:
         uses: actions/checkout@v1
 
       - name: Adjusting Cargo.toml for release...
-        run: |
-          version=$(grep "^version" Cargo.toml | cut -d"\"" -f2 )
-          if [[ $version != *"-SNAPSHOT"* ]]; then
-            echo "Version string MUST contain \"-SNAPSHOT\"!"
-            exit 1;
-          fi
-          version=$(grep "^version" Cargo.toml | cut -d"\"" -f2 | sed 's/-SNAPSHOT//g')
-          tag=$(echo ${GITHUB_REF/refs\/tags\//} | sed 's/^.//')
-          if [[ $version != $tag ]]; then
-            echo "Version Mismatch! The version you want to build doesn't match the version in your Cargo.toml.";
-            exit 1;
-          fi
-          sed -i'' "s/version=.*-SNAPSHOT\"/version = \"$version\"/g" Cargo.toml
+        run: sh ./.github/workflows/${{ matrix.os }}.sh
 
       - name: Build
         run: |
