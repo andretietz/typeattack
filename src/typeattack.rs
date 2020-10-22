@@ -1,6 +1,8 @@
 use std::pin::Pin;
 use std::time::{Duration, Instant};
 
+use crate::words::WORDS;
+
 use async_std::stream::interval;
 use futures::{stream::select, StreamExt};
 use futures::executor::block_on;
@@ -8,16 +10,18 @@ use futures::stream::Stream;
 use rand::prelude::ThreadRng;
 use rand::Rng;
 
-use crate::arguments::Arguments;
+pub const DEFAULT_SPEED: f64 = 0.0001;
 
 /// Events the [RenderEngine.event_stream] needs to produce.
 pub enum Event {
-  // pauses the game
-  Pause,
+  // cancels the game
+  Stop,
   // a character was entered by the user
   AddChar(char),
   // the user wants to remove the last entered character (delete)
   RemoveChar,
+  // Clears the buffer if necessary
+  ClearBuffer,
 }
 
 pub trait RenderEngine {
@@ -39,17 +43,14 @@ pub trait RenderEngine {
 
 pub struct Typeattack {
   level: usize,
-  words: Vec<String>,
   engine: Box<dyn RenderEngine>,
   random: ThreadRng,
 }
 
 impl Typeattack {
-  pub fn new(args: &Arguments, engine: Box<dyn RenderEngine>) -> Self {
+  pub fn new(engine: Box<dyn RenderEngine>) -> Self {
     return Typeattack {
       level: 1,
-      // TODO: not ideal, fine for now
-      words: args.file.clone(),
       engine,
       random: rand::thread_rng(),
     };
@@ -74,14 +75,15 @@ impl Typeattack {
           futures::future::ready(
             match event {
               Event::AddChar(_) => true,
-              Event::Pause => true,
+              Event::Stop => true,
+              Event::ClearBuffer => true,
               _ => false
             }
           )
         });
     if let Some(event) = input.next().await {
       return match event {
-        Event::Pause => false,
+        Event::Stop => false,
         _ => true
       };
     }
@@ -117,13 +119,30 @@ impl Typeattack {
         StreamEvent::KeyEvent(key) => {
           let mut new_world_state = world_state.clone();
           match key {
-            Event::Pause => break,
+            Event::Stop => break,
             Event::AddChar(c) => {
               new_world_state.buffer.push(c);
+              let mut delete_buffer = true;
+              if new_world_state.buffer.len() > 0 {
+                for word in &new_world_state.words {
+                  if word.word.starts_with(&new_world_state.buffer) {
+                    delete_buffer = false;
+                    break;
+                  }
+                }
+              }
+              if delete_buffer {
+                new_world_state.buffer.pop();
+                // new_world_state.buffer.clear();
+              }
               new_world_state.keycount += 1;
             }
             Event::RemoveChar => {
               new_world_state.buffer.pop();
+              new_world_state.keycount += 1;
+            }
+            Event::ClearBuffer => {
+              new_world_state.buffer.clear();
               new_world_state.keycount += 1;
             }
           }
@@ -152,18 +171,18 @@ impl Typeattack {
 
   fn update_world(self: &mut Self, delta: u128, world: &WorldState) -> WorldState {
     // add 1/10th of speed every level => level 10 -> double speed
-    let velocity = 0.0001 * (1.0 + self.level as f64 / 10.0) as f64;
+    let velocity = DEFAULT_SPEED * (1.0 + self.level as f64 / 10.0) as f64;
     // v = 1.0(screen_unit) / 10000ms = 0.0001 screen_unit/ms
     // delta_s = v * delta_t
     let delta_s = velocity * delta as f64;
     let mut words: Vec<Word> = Vec::new();
-    let mut fails: u16 = 0;
+    let mut new_fails: u16 = 0;
     for i in 0..world.words.len() {
       let word: &Word = &world.words[i];
       if word.y + delta_s < 1.0 {
         words.push(Word::new(word.word.as_str().clone(), word.x, word.y + delta_s));
       } else {
-        fails += 1;
+        new_fails += 1;
       }
     }
     // level + 1, for each 10 words
@@ -175,7 +194,7 @@ impl Typeattack {
     WorldState {
       words,
       buffer: world.buffer.clone(),
-      fails: world.fails + fails,
+      fails: world.fails + new_fails,
       wordcount: world.wordcount,
       keycount: world.keycount,
       level: world.level,
@@ -183,9 +202,8 @@ impl Typeattack {
   }
 
   fn spawn_word(self: &mut Self) -> Word {
-    let word = self.words.get(self.random.gen_range(0, self.words.len())).unwrap();
     Word {
-      word: word.clone(),
+      word: String::from(WORDS[self.random.gen_range(0, WORDS.len())]),
       x: self.random.gen_range(0.0, 1.0),
       y: 0.0,
     }

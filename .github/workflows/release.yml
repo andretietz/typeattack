@@ -6,25 +6,25 @@ on:
       - 'v*'
 
 jobs:
-  publish:
+  build:
     name: Publish for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
         include:
           - os: ubuntu-latest
-            artifact_name: project-transformer
-            zipcommand: zip -j project-transformer-linux-x86_64.zip target/release/project-transformer README.md
-            asset_name: project-transformer-linux-x86_64
+            artifact_name: typeattack
+            zipcommand: zip -j typeattack-linux-x86_64.zip target/release/typeattack README.md
+            asset_name: typeattack-linux-x86_64
           - os: windows-latest
-            zipcommand: Compress-Archive target/release/project-transformer.exe,README.md project-transformer-windows-x86_64.zip
-            artifact_name: project-transformer.exe
-            asset_name: project-transformer-windows-x86_64
+            zipcommand: Compress-Archive target/release/typeattack.exe,README.md typeattack-windows-x86_64.zip
+            artifact_name: typeattack.exe
+            asset_name: typeattack-windows-x86_64
           - os: macos-latest
-            zipcommand: zip -j project-transformer-macos-x86_64.zip target/release/project-transformer README.md
-            artifact_name: project-transformer
-            asset_name: project-transformer-macos-x86_64
+            zipcommand: zip -j typeattack-macos-x86_64.zip target/release/typeattack README.md
+            artifact_name: typeattack
+            asset_name: typeattack-macos-x86_64
 
     steps:
       - name: Setup Rust environment
@@ -35,8 +35,24 @@ jobs:
       - name: Checking out code...
         uses: actions/checkout@v1
 
+      - name: Adjusting Cargo.toml for release...
+        run: |
+          version=$(grep "^version" Cargo.toml | cut -d"\"" -f2 )
+          if [[ $version != *"-SNAPSHOT"* ]]; then
+            echo "Version string MUST contain \"-SNAPSHOT\"!"
+            exit 1;
+          fi
+          version=$(grep "^version" Cargo.toml | cut -d"\"" -f2 | sed 's/-SNAPSHOT//g')
+          tag=$(echo ${GITHUB_REF/refs\/tags\//} | sed 's/^.//')
+          if [[ $version != $tag ]]; then
+            echo "Version Mismatch! The version you want to build doesn't match the version in your Cargo.toml.";
+            exit 1;
+          fi
+          sed -i'' "s/version=.*-SNAPSHOT\"/version = \"$version\"/g" Cargo.toml
+
       - name: Build
         run: |
+          cargo test
           cargo build --release --locked
           ${{ matrix.zipcommand }}
 
@@ -48,3 +64,17 @@ jobs:
           asset_name: ${{ matrix.asset_name }}.zip
           tag: ${{ github.ref }}
           overwrite: true
+  release:
+    needs: build
+    name: Creating a release on github
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Release
+        uses: actions/create-release@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false

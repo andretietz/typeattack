@@ -1,13 +1,11 @@
-use crate::arguments::Arguments;
 use crate::crossterm::Crossterm;
 use crate::typeattack::Typeattack;
 
-mod arguments;
 mod typeattack;
 mod crossterm;
+mod words;
 
 fn main() {
-  let args = Arguments::get().unwrap();
-  let mut typotack = Typeattack::new(&args, Box::new(Crossterm::new()));
+  let mut typotack = Typeattack::new(Box::new(Crossterm::new()));
   typotack.start();
 }

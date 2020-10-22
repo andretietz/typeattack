@@ -1,6 +1,9 @@
+mod strings;
+
 use std::io::{stdout, Write};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
+use strings::*;
 
 use crossterm::{
   cursor::{Hide, MoveTo, RestorePosition, SavePosition},
@@ -14,15 +17,6 @@ use crossterm::terminal::disable_raw_mode;
 use futures::stream::{Stream, StreamExt};
 
 use crate::typeattack::{Event, RenderEngine, Word, WorldState};
-
-const INTRO1: &'static str = ".%%%%%%..%%..%%..%%%%%...%%%%%%...%%%%...%%%%%%..%%%%%%...%%%%....%%%%...%%..%%.";
-const INTRO2: &'static str = "...%%.....%%%%...%%..%%..%%......%%..%%....%%......%%....%%..%%..%%..%%..%%.%%..";
-const INTRO3: &'static str = "...%%......%%....%%%%%...%%%%....%%%%%%....%%......%%....%%%%%%..%%......%%%%...";
-const INTRO4: &'static str = "...%%......%%....%%......%%......%%..%%....%%......%%....%%..%%..%%..%%..%%.%%..";
-const INTRO5: &'static str = "...%%......%%....%%......%%%%%%..%%..%%....%%......%%....%%..%%...%%%%...%%..%%.";
-const INTRO6: &'static str = "................................................................................";
-const GAME_OVER: &'static str = "Game Over";
-
 
 struct Screen {
   size_x: u16,
@@ -103,6 +97,7 @@ impl Crossterm {
                     KeyCode::Esc => true,
                     KeyCode::Backspace => true,
                     KeyCode::Char(_) => true,
+                    KeyCode::Enter => true,
                     _ => false
                   }
                 }
@@ -122,9 +117,10 @@ impl Crossterm {
               match event {
                 event::Event::Key(key) => {
                   match key.code {
-                    KeyCode::Esc => Event::Pause,
+                    KeyCode::Esc => Event::Stop,
                     KeyCode::Backspace => Event::RemoveChar,
                     KeyCode::Char(c) => Event::AddChar(c),
+                    KeyCode::Enter => Event::ClearBuffer,
                     _ => panic!("")
                   }
                 }
@@ -166,22 +162,29 @@ impl RenderEngine for Crossterm {
   }
 
   fn draw_menu(self: &Self) {
+    let screen = self.screen.lock().unwrap();
+    let title_pos_y = (screen.size_y - 6) / 3;
+    let title_pos_x = (screen.size_x - INTRO1.len() as u16) / 2;
+    let help_pos_x = (screen.size_x - HELP.len() as u16) / 2;
+    let copyright_pos_x = (screen.size_x - COPYRIGHT.len() as u16) / 2;
     execute!(stdout(),
       Clear(ClearType::All),
-      MoveTo(0, 2),
+      MoveTo(title_pos_x, title_pos_y + 0),
       Print(INTRO1),
-      MoveTo(0, 3),
+      MoveTo(title_pos_x, title_pos_y + 1),
       Print(INTRO2),
-      MoveTo(0, 4),
+      MoveTo(title_pos_x, title_pos_y + 2),
       Print(INTRO3),
-      MoveTo(0, 5),
+      MoveTo(title_pos_x, title_pos_y + 3),
       Print(INTRO4),
-      MoveTo(0, 6),
+      MoveTo(title_pos_x, title_pos_y + 4),
       Print(INTRO5),
-      MoveTo(0, 7),
+      MoveTo(title_pos_x,title_pos_y + 5),
       Print(INTRO6),
-      MoveTo(0,10),
-      Print("Esc - Leave the game  Any Key - Start the game")
+      MoveTo(help_pos_x,title_pos_y + 8),
+      Print(HELP),
+      MoveTo(copyright_pos_x, screen.size_y - 1),
+      Print(COPYRIGHT)
     ).unwrap();
   }
 
@@ -195,19 +198,40 @@ impl RenderEngine for Crossterm {
     // draw HUD
     queue!(stdout(),
       MoveTo(0, self.screen.lock().unwrap().size_y),
-      Print(format!("Inputs: {} Fails: {} Words: {} Buffer: {}", &state.keycount, &state.fails, &state.wordcount, &state.buffer))
+      Print(format!("Level: {} Fails: {} Words: {} Inputs: {} Buffer: {}",
+        &state.level,
+        &state.fails,
+        &state.wordcount,
+        &state.keycount,
+        &state.buffer
+        ))
       ).unwrap();
     // apply
     stdout().flush().unwrap();
   }
 
   fn draw_result(self: &Self, _result: &WorldState) {
-    let gameover_pos_x = (self.screen.lock().unwrap().size_x - GAME_OVER.len() as u16) / 2;
-    let gameover_pos_y = self.screen.lock().unwrap().size_y / 2;
+    let gameover_pos_x = (self.screen.lock().unwrap().size_x - GAME_OVER1.len() as u16) / 2;
+    let gameover_pos_y = (self.screen.lock().unwrap().size_y-8) / 2;
     queue!(stdout(),
       Clear(ClearType::All),
-      MoveTo(gameover_pos_x, gameover_pos_y),
-      Print(GAME_OVER)
+      MoveTo(gameover_pos_x, gameover_pos_y + 0),
+      Print(GAME_OVER1),
+      MoveTo(gameover_pos_x, gameover_pos_y + 1),
+      Print(GAME_OVER2),
+      MoveTo(gameover_pos_x, gameover_pos_y + 2),
+      Print(GAME_OVER3),
+      MoveTo(gameover_pos_x, gameover_pos_y + 3),
+      Print(GAME_OVER4),
+      MoveTo(gameover_pos_x, gameover_pos_y + 4),
+      Print(GAME_OVER5),
+      MoveTo(gameover_pos_x, gameover_pos_y + 5),
+      Print(GAME_OVER6),
+      MoveTo(gameover_pos_x, gameover_pos_y + 6),
+      Print(GAME_OVER7),
+      MoveTo(gameover_pos_x, gameover_pos_y + 7),
+      Print(GAME_OVER8)
+
     ).unwrap();
     // apply
     stdout().flush().unwrap();
@@ -229,7 +253,7 @@ mod tests {
   use crate::typeattack::Word;
 
   /// 0123456789
-            /// TEST......
+      /// TEST......
   #[test]
   fn text_left_even() {
     let crossterm = Crossterm::new_with_size(80, 24);
