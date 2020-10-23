@@ -1,0 +1,21 @@
+name: Publish Release on Github
+
+on:
+  push:
+    tags:
+      - 'v[01].[0-9]+.[0-9]+'
+
+jobs:
+  publish:
+    name: Creating a release on github
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Release
+        uses: actions/create-release@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
