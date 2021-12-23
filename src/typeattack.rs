@@ -203,8 +203,8 @@ impl Typeattack {
 
   fn spawn_word(self: &mut Self) -> Word {
     Word {
-      word: String::from(WORDS[self.random.gen_range(0, WORDS.len())]),
-      x: self.random.gen_range(0.0, 1.0),
+      word: String::from(WORDS[self.random.gen_range(0..WORDS.len())]),
+      x: self.random.gen_range(0.0..1.0),
       y: 0.0,
     }
   }
