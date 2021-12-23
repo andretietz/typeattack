@@ -721,7 +721,7 @@ dependencies = [
 
 [[package]]
 name = "typeattack"
-version = "0.1.1-SNAPSHOT"
+version = "0.1.2-SNAPSHOT"
 dependencies = [
  "async-std",
  "crossterm",

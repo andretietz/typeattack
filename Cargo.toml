@@ -1,6 +1,6 @@
 [package]
 name = "typeattack"
-version = "0.1.1-SNAPSHOT"
+version = "0.1.2-SNAPSHOT"
 authors = ["André Tietz <andre.tietz@gmail.com>"]
 edition = "2021"
 
